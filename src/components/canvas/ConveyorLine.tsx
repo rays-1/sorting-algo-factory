@@ -71,8 +71,6 @@ export function ConveyorLine({ count }: { count: number }) {
             color="#5A727B"
             anchorX="center"
             anchorY="middle"
-            font="/fonts/ibm-plex-mono.woff"
-            // fallback if font missing — drei will use default
           >
             {String(i + 1).padStart(2, "0")}
           </Text>
