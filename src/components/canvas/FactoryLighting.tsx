@@ -1,22 +1,11 @@
-import { useMemo } from "react";
-
 export function FactoryLighting() {
-  // matte, controlled — not overbright
-  const colorCyan = useMemo(() => "#36C7D9", []);
   return (
     <>
-      <ambientLight intensity={0.45} color="#0A1217" />
-      <directionalLight
-        position={[6, 8, 4]}
-        intensity={1.1}
-        color="#B8D2D8"
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-      />
-      <directionalLight position={[-6, 4, -3]} intensity={0.35} color={colorCyan} />
-      <pointLight position={[0, 4, 0]} intensity={0.6} color={colorCyan} distance={18} decay={2} />
-      <pointLight position={[0, 0.2, 1.5]} intensity={0.25} color="#F5A623" distance={8} />
-      <hemisphereLight args={["#0D171D", "#05090C", 0.3]} />
+      <ambientLight intensity={1.15} color="#9EB8C2" />
+      <directionalLight position={[8, 10, 6]} intensity={1.35} color="#E6F2F6" castShadow shadow-mapSize={[1024, 1024]} />
+      <directionalLight position={[-7, 6, -5]} intensity={0.7} color="#36C7D9" />
+      <pointLight position={[0, 4.5, 0]} intensity={0.9} color="#36C7D9" distance={22} decay={2} />
+      <hemisphereLight args={["#B8D2D8", "#05090C", 0.55]} />
     </>
   );
 }

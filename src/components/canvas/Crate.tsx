@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { Text, Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { getSlotX } from "@/utils/math";
@@ -19,7 +19,6 @@ const W = 1.02;
 const D = 1.0;
 
 export function Crate({ index, value, count, register }: Props) {
-  const meshRef = useRef<THREE.Mesh>(null!);
   const compareIndices = useFactoryStore((s) => s.compareIndices);
   const swapIndices = useFactoryStore((s) => s.swapIndices);
   const pivotIndex = useFactoryStore((s) => s.pivotIndex);
@@ -27,6 +26,8 @@ export function Crate({ index, value, count, register }: Props) {
 
   const h = BASE_H + value * STEP;
   const x = getSlotX(index, count);
+  // y so base sits on conveyor (conveyor top ~ -0.03)
+  const y = h / 2 - 0.04;
 
   let state: CrateState = "idle";
   if (sortedSet.has(index)) state = "sorted";
@@ -50,30 +51,20 @@ export function Crate({ index, value, count, register }: Props) {
       case "pivot": return "#E04B4B";
       case "swap": return "#F5A623";
       case "compare": return "#36C7D9";
-      default: return "#18242A";
+      default: return "#1B2E37";
     }
   }, [state]);
 
-  const emissiveIntensity = state === "idle" ? 0.18 : state === "sorted" ? 0.55 : 0.85;
-
-  // avoid re-creating geometry per frame
+  const emissiveIntensity = state === "idle" ? 0.28 : state === "sorted" ? 0.65 : 0.95;
   const geom = useMemo(() => new THREE.BoxGeometry(W, h, D), [h]);
 
   return (
     <mesh
-      ref={(m) => {
-        // @ts-expect-error assignment
-        meshRef.current = m;
-        register(index, m);
-        if (m) {
-          m.position.x = x;
-          m.position.y = h / 2 - 0.055;
-          m.position.z = 0;
-        }
-      }}
+      position={[x, y, 0]}
       geometry={geom}
       castShadow
       receiveShadow
+      ref={(m) => register(index, m)}
     >
       <meshStandardMaterial
         color={matColor}
@@ -82,58 +73,57 @@ export function Crate({ index, value, count, register }: Props) {
         roughness={0.72}
         metalness={0.28}
       />
-      <Edges color={state === "idle" ? "#1E333C" : emissive} threshold={12} />
-      {/* top plate highlight */}
-      <mesh position={[0, h / 2 - 0.025, 0]}>
-        <boxGeometry args={[W - 0.06, 0.02, D - 0.06]} />
-        <meshStandardMaterial color="#0A1217" roughness={0.5} metalness={0.4} />
+      <Edges color={state === "idle" ? "#223845" : emissive} threshold={15} />
+      {/* top plate */}
+      <mesh position={[0, h / 2 - 0.02, 0]}>
+        <boxGeometry args={[W - 0.06, 0.025, D - 0.06]} />
+        <meshStandardMaterial color="#0A1217" roughness={0.55} metalness={0.42} />
       </mesh>
-      {/* numeric readout — holographic style */}
-      <group position={[0, h / 2 + 0.18, 0]}>
+      {/* numeric readout */}
+      <group position={[0, h / 2 + 0.2, 0]}>
         <mesh>
-          <planeGeometry args={[0.9, 0.38]} />
-          <meshBasicMaterial color="#05090C" transparent opacity={0.82} />
+          <planeGeometry args={[0.92, 0.4]} />
+          <meshBasicMaterial color="#05090C" transparent opacity={0.88} />
         </mesh>
         <Text
-          position={[0, 0.04, 0.01]}
-          fontSize={0.22}
-          color={state === "sorted" ? "#42C6A5" : state === "pivot" ? "#E88A7A" : "#B8D2D8"}
+          position={[0, 0.05, 0.01]}
+          fontSize={0.24}
+          color={state === "sorted" ? "#42C6A5" : state === "pivot" ? "#FF8A7A" : "#B8D2D8"}
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.012}
+          outlineWidth={0.01}
           outlineColor="#05090C"
         >
           {String(value).padStart(3, "0")}
         </Text>
         <Text
           position={[0, -0.11, 0.01]}
-          fontSize={0.07}
-          color="#5A727B"
+          fontSize={0.072}
+          color="#7A95A0"
           anchorX="center"
           letterSpacing={0.04}
         >
           {`UNIT ${String(index + 1).padStart(2, "0")}`}
         </Text>
       </group>
-      {/* side indicator dots */}
-      <mesh position={[W / 2 - 0.08, -h / 2 + 0.2, 0]}>
-        <boxGeometry args={[0.02, 0.02, 0.5]} />
-        <meshStandardMaterial color={emissive} emissive={emissive} emissiveIntensity={emissiveIntensity + 0.6} />
+      {/* side strips */}
+      <mesh position={[W / 2 - 0.08, -h / 2 + 0.22, 0]}>
+        <boxGeometry args={[0.02, 0.02, 0.58]} />
+        <meshStandardMaterial color={emissive} emissive={emissive} emissiveIntensity={emissiveIntensity + 0.5} />
       </mesh>
-      <mesh position={[-W / 2 + 0.08, -h / 2 + 0.2, 0]}>
-        <boxGeometry args={[0.02, 0.02, 0.5]} />
-        <meshStandardMaterial color={emissive} emissive={emissive} emissiveIntensity={emissiveIntensity + 0.6} />
+      <mesh position={[-W / 2 + 0.08, -h / 2 + 0.22, 0]}>
+        <boxGeometry args={[0.02, 0.02, 0.58]} />
+        <meshStandardMaterial color={emissive} emissive={emissive} emissiveIntensity={emissiveIntensity + 0.5} />
       </mesh>
-      {/* sorted lock clamp */}
       {state === "sorted" && (
-        <group position={[0, -h / 2 + 0.08, 0]}>
-          <mesh position={[0, 0, 0.52]}>
-            <boxGeometry args={[W + 0.04, 0.06, 0.06]} />
-            <meshStandardMaterial color="#42C6A5" emissive="#42C6A5" emissiveIntensity={0.8} />
+        <group position={[0, -h / 2 + 0.09, 0]}>
+          <mesh position={[0, 0, 0.54]}>
+            <boxGeometry args={[W + 0.06, 0.065, 0.065]} />
+            <meshStandardMaterial color="#42C6A5" emissive="#42C6A5" emissiveIntensity={0.9} />
           </mesh>
-          <mesh position={[0, 0, -0.52]}>
-            <boxGeometry args={[W + 0.04, 0.06, 0.06]} />
-            <meshStandardMaterial color="#42C6A5" emissive="#42C6A5" emissiveIntensity={0.8} />
+          <mesh position={[0, 0, -0.54]}>
+            <boxGeometry args={[W + 0.06, 0.065, 0.065]} />
+            <meshStandardMaterial color="#42C6A5" emissive="#42C6A5" emissiveIntensity={0.9} />
           </mesh>
         </group>
       )}
