@@ -1,8 +1,8 @@
 # AGENTS.md
 
 ## Project
-- `sorting-algo-factory` — https://github.com/rays-1/sorting-algo-factory (`main`, initial commit `9874822`). Greenfield as of 2026-09-03: only `README.md` so far.
-- Name implies sorting-algorithm implementations — confirm language and scope with user before scaffolding. Update this file when stack/manifest is added.
+- `sorting-algo-factory` — https://github.com/rays-1/sorting-algo-factory (`main`). Futuristic industrial 3D sorting factory — crates on conveyor + gantry robotics, HUD control terminal. Spec in chat mega-prompt `§1-44`.
+- Stack: Vite 8 + React 19 + TS 6 + Three + R3F + Drei + Zustand + GSAP + Web Audio.
 
 ## Workspace
 - Absolute path contains space: `C:\Users\rayst\OneDrive\Documents\sorting-algo` — always quote paths; use tool `workdir` param instead of `cd`/`Set-Location`.
@@ -14,12 +14,21 @@
 - **Every major feature/addition must be pushed to GitHub** — do not leave commits local. After `git add` + `git commit`, run `git push origin main` (or push feature branch and open PR if branching is adopted) and verify with `git status` and `git log --oneline -3`.
 - Local git config: `user.name=rays-1`, `user.email=raystercarino@gmail.com` — override per-commit if needed.
 
-## Tooling (none yet)
-- No build, test, lint, formatter, or typecheck config detected — no `package.json`, `pyproject.toml`, `Makefile`, lockfile, or repo-local `opencode.json` (only global `~/.config/opencode/opencode.jsonc` with `{"$schema":"https://opencode.ai/config.json"}`).
-- No CI workflows or pre-commit hooks present.
-- After adding toolchain, document here: exact install, build, test, and single-test commands verified from config/scripts.
+## Tooling
+- Package manager: `npm` (lockfile `package-lock.json`). Install: `npm install` (workdir `C:\Users\rayst\OneDrive\Documents\sorting-algo`). Verified 2026-09-03: Node 24.19 + npm 11.17.
+- Scripts (from `package.json:6`): `npm run dev` → Vite dev server; `npm run build` → `tsc -b && vite build`; `npm run preview` → Vite preview; lint via `oxlint` (`.oxlintrc.json`).
+- TS: `tsconfig.json` refs `tsconfig.app.json`/`tsconfig.node.json` (path alias `@` → `src`). Vite config `vite.config.ts:10` uses `import.meta.dirname`.
+- No test runner yet — algorithms verified via generator output (`[...registry[id].generator(arr)]`). Add Vitest if needed and document single-test command.
+- No CI workflows or pre-commit hooks.
 
 ## Guidance for Next Session
 - Prefer executable sources of truth (manifests/scripts) over prose when they conflict.
 - Keep this file compact — only add lines an agent would likely miss without help; omit generic language conventions.
 - When scaffolding, add minimal runnable example and verified command to run it, then replace the greenfield notice above.
+
+## Architecture
+- Entry: `src/main.tsx` → `src/App.tsx` (grid HUD + `<Canvas>`).
+- `src/types/sorting.ts` defines `FactoryAction` + `SortingGenerator`; `src/algorithms/index.ts` registry drives UI. Algorithms are pure generators — no React/Three.
+- `src/store/useFactoryStore.ts` holds `dataset`/`workingArray`/`playbackState`/`speed`/`pivot`/`sortedIndices`/telemetry; no meshes in store.
+- `src/engine/SortingPlayback.ts` + `ActionExecutor.ts` handle cancellable GSAP timelines (`AbortController` + `generation` counter); `src/utils/audio.ts` is singleton `AudioContext`.
+- `src/components/canvas/FactoryScene.tsx` is canvas root; `Crate.tsx` height = `0.52 + value*0.018`; slot math in `src/utils/math.ts:getSlotX`. `GantryCrane.tsx` exposes `GantryHandle` ref for executor.
