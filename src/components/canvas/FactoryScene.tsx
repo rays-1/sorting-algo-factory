@@ -11,6 +11,7 @@ import { SafetyRails } from "./SafetyRails";
 function SceneContent({ gantryRef, meshMap }: { gantryRef: React.RefObject<GantryHandle | null>; meshMap: React.MutableRefObject<Map<number, THREE.Mesh>> }) {
   const count = useFactoryStore((s) => s.workingArray.length);
   const workingArray = useFactoryStore((s) => s.workingArray);
+  const generation = useFactoryStore((s) => s.generation);
 
   // widen view for larger arrays
   const camX = 0;
@@ -24,13 +25,14 @@ function SceneContent({ gantryRef, meshMap }: { gantryRef: React.RefObject<Gantr
       <ConveyorLine count={count} />
       <SafetyRails count={count} />
       <GantryCrane ref={gantryRef as never} count={count} />
-      {/* crates — stable key per slot */}
-      {workingArray.map((v, i) => (
+      {/* crates — key by crate id so physical crate travels with its value */}
+      {workingArray.map((crate, i) => (
         <Crate
-          key={`slot-${i}`}
+          key={crate.id}
           index={i}
-          value={v}
+          value={crate.value}
           count={count}
+          generation={generation}
           register={(idx, mesh) => {
             if (mesh) meshMap.current.set(idx, mesh);
             else meshMap.current.delete(idx);
@@ -54,8 +56,11 @@ export function FactoryScene({
   gantryRef: React.RefObject<GantryHandle | null>;
   meshMap: React.MutableRefObject<Map<number, THREE.Mesh>>;
 }) {
+  const generation = useFactoryStore((s) => s.generation);
+  const count = useFactoryStore((s) => s.workingArray.length);
   return (
     <Canvas
+      key={`factory-${generation}-${count}`}
       dpr={[1, 1.5]}
       shadows={false}
       gl={{ antialias: true, powerPreference: "high-performance" }}

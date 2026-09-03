@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   AlgorithmId,
   CameraPreset,
+  CrateData,
   DatasetType,
   FactoryAction,
   PlaybackState,
@@ -9,24 +10,29 @@ import type {
 import { generateDataset } from "@/utils/dataset";
 import { defaultAlgorithmId, registry } from "@/algorithms";
 
-const _initDs = generateDataset("random", 18);
+function toCrates(values: number[]): CrateData[] {
+  return values.map((v, i) => ({ id: `crate-${i}-${v}-${Math.random().toString(36).slice(2, 6)}`, value: v }));
+}
+
+const _initVals = generateDataset("random", 18);
+const _initCrates = toCrates(_initVals);
 
 type FactoryStore = {
-  // data
+  // data — dataset is canonical numbers for generator; workingArray is ordered crates that move
   dataset: number[];
-  workingArray: number[];
+  workingArray: CrateData[];
   datasetType: DatasetType;
   arraySize: number;
 
   // algo
   algorithmId: AlgorithmId;
   actions: FactoryAction[];
-  actionIndex: number; // next action to execute
+  actionIndex: number;
   currentAction: FactoryAction | null;
 
   // playback
   playbackState: PlaybackState;
-  speed: number; // 0.25 - 3
+  speed: number;
   isMuted: boolean;
   generation: number;
 
@@ -42,8 +48,6 @@ type FactoryStore = {
   // view
   cameraPreset: CameraPreset;
   progress: number;
-
-  // derived
   isFinished: boolean;
 
   // actions
@@ -58,15 +62,14 @@ type FactoryStore = {
   setPlaybackState: (s: PlaybackState) => void;
   incrementGeneration: () => void;
 
-  // per-action reducers
   applyAction: (a: FactoryAction) => void;
   resetTelemetryAndArray: () => void;
   markProgress: () => void;
 };
 
 export const useFactoryStore = create<FactoryStore>((set, get) => ({
-  dataset: [..._initDs],
-  workingArray: [..._initDs],
+  dataset: [..._initVals],
+  workingArray: [..._initCrates],
   datasetType: "random",
   arraySize: 18,
 
@@ -93,7 +96,22 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
   isFinished: false,
 
   setAlgorithm: (id) =>
-    set({ algorithmId: id, generation: get().generation + 1 }),
+    set((s) => ({
+      algorithmId: id,
+      generation: s.generation + 1,
+      pivotIndex: null,
+      compareIndices: null,
+      swapIndices: null,
+      sortedIndices: new Set<number>(),
+      comparisons: 0,
+      swaps: 0,
+      overwrites: 0,
+      actionIndex: 0,
+      currentAction: null,
+      progress: 0,
+      playbackState: "idle",
+      isFinished: false,
+    })),
 
   setDatasetType: (t) => set({ datasetType: t }),
   setArraySize: (n) => set({ arraySize: Math.max(5, Math.min(60, Math.round(n))) }),
@@ -113,7 +131,7 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
     const ds = generateDataset(datasetType, arraySize);
     set({
       dataset: ds,
-      workingArray: [...ds],
+      workingArray: toCrates(ds),
       actions: [],
       actionIndex: 0,
       currentAction: null,
@@ -138,11 +156,11 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
   applyAction: (a) =>
     set((s) => {
       const next: Partial<FactoryStore> = { currentAction: a };
-      // update workingArray optimistically (swap/overwrite)
       let wa = s.workingArray;
       if (a.type === "SWAP") {
         wa = [...wa];
         const [i, j] = a.indices;
+        // swap crate objects — height travels with crate
         [wa[i], wa[j]] = [wa[j], wa[i]];
         next.workingArray = wa;
         next.swaps = s.swaps + 1;
@@ -150,7 +168,9 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
         next.compareIndices = null;
       } else if (a.type === "OVERWRITE") {
         wa = [...wa];
-        wa[a.index] = a.value;
+        // overwrite in place — keep id, change value (merge)
+        const idx = a.index;
+        wa[idx] = { ...wa[idx], value: a.value };
         next.workingArray = wa;
         next.overwrites = s.overwrites + 1;
       } else if (a.type === "COMPARE") {
@@ -182,7 +202,7 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
 
   resetTelemetryAndArray: () =>
     set((s) => ({
-      workingArray: [...s.dataset],
+      workingArray: toCrates([...s.dataset]),
       actionIndex: 0,
       currentAction: null,
       playbackState: "idle",
@@ -208,10 +228,9 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
 setTimeout(() => {
   try {
     useFactoryStore.getState().buildActions();
-    // ensure workingArray matches dataset
     const s = useFactoryStore.getState();
     if (s.workingArray.length !== s.dataset.length) {
-      useFactoryStore.setState({ workingArray: [...s.dataset] });
+      useFactoryStore.setState({ workingArray: toCrates([...s.dataset]) });
     }
   } catch { /* ignore */ }
 }, 0);

@@ -51,8 +51,8 @@ export default function App() {
             <div style={{ marginTop: 8, border: "1px solid var(--border)", background: "#080D10", padding: 6, position: "relative", overflow: "hidden", height: 42 }}>
               <div style={{ position: "absolute", top: 4, left: 6, fontFamily: "var(--mono)", fontSize: 6, letterSpacing: "0.14em", color: "var(--muted2)" }}>ARRAY TOPOLOGY</div>
               <div style={{ display: "flex", gap: 2, alignItems: "end", height: "100%", justifyContent: "center", paddingTop: 8 }}>
-                {useFactoryStore.getState().workingArray.slice(0, 24).map((v, i) => (
-                  <div key={i} style={{ width: 6, height: `${8 + (v / 100) * 18}px`, background: useFactoryStore.getState().sortedIndices.has(i) ? "var(--green)" : useFactoryStore.getState().pivotIndex === i ? "var(--red)" : "var(--cyan)", opacity: 0.9, borderTop: "1px solid rgba(255,255,255,0.15)" }} />
+                {useFactoryStore.getState().workingArray.slice(0, 24).map((c, i) => (
+                  <div key={c.id} style={{ width: 6, height: `${8 + (c.value / 100) * 18}px`, background: useFactoryStore.getState().sortedIndices.has(i) ? "var(--green)" : useFactoryStore.getState().pivotIndex === i ? "var(--red)" : "var(--cyan)", opacity: 0.9, borderTop: "1px solid rgba(255,255,255,0.15)" }} />
                 ))}
               </div>
             </div>
@@ -126,7 +126,7 @@ export default function App() {
       <footer className="app-bottom">
         <ProcessTimeline />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", fontFamily: "var(--mono)", fontSize: 7, letterSpacing: "0.14em", color: "var(--muted2)", background: "linear-gradient(180deg, #0A1217, #070D11)", borderTop: "1px solid var(--border)" }}>
-          <span>ARRAY STATE: [{useFactoryStore.getState().workingArray.map((v) => String(v).padStart(3, "0")).join("  ")}]</span>
+          <span>ARRAY STATE: [{useFactoryStore.getState().workingArray.map((c) => String(c.value).padStart(3, "0")).join("  ")}]</span>
           <span style={{ whiteSpace: "nowrap", marginLeft: 12, color: useFactoryStore.getState().playbackState === "finished" ? "var(--green)" : "var(--muted)" }}>
             {useFactoryStore.getState().playbackState === "finished" ? "VERIFIED — PRODUCTION LINE STABLE" : "AWAITING PROCESS — FACILITY IDLE"}
           </span>

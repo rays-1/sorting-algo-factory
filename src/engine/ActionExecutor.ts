@@ -61,10 +61,10 @@ export async function executeAction(
       const am = ctx.getCrateMesh(a);
       const bm = ctx.getCrateMesh(b);
       const gantry = ctx.getGantry();
-      // gantry moves to midpoint
+      // gantry tracks the primary inspected slot (not mid for distant pivot pairs)
       if (gantry) {
-        const mid = (ctx.getSlotX(a) + ctx.getSlotX(b)) / 2;
-        await tweenTo(gantry.carriage.position, { x: mid, duration: dur(220) / 1000, ease: "power2.inOut" }, signal);
+        const targetX = ctx.getSlotX(a);
+        await tweenTo(gantry.carriage.position, { x: targetX, duration: dur(220) / 1000, ease: "power2.inOut" }, signal);
         // head descend
         await tweenTo(gantry.head.position, { y: -0.25, duration: dur(120) / 1000, ease: "power2.out" }, signal);
       }
@@ -92,21 +92,23 @@ export async function executeAction(
       }
       if (!ctx.muted) audio.playPistonClank();
 
-      // lift both slightly with Z stagger to avoid intersection
-      const lift = 0.9;
+      // lift — relative to current base height (fixes absolute 0 bug that sank crates through conveyor)
+      const yi = mi.position.y;
+      const yj = mj.position.y;
+      const lift = 1.05;
       await Promise.all([
-        tweenTo(mi.position, { y: lift, z: 0.35, duration: dur(160) / 1000, ease: "power2.out" }, signal),
-        tweenTo(mj.position, { y: lift, z: -0.35, duration: dur(160) / 1000, ease: "power2.out" }, signal),
+        tweenTo(mi.position, { y: yi + lift, z: 0.36, duration: dur(160) / 1000, ease: "power2.out" }, signal),
+        tweenTo(mj.position, { y: yj + lift, z: -0.36, duration: dur(160) / 1000, ease: "power2.out" }, signal),
       ]);
-      // translate
+      // translate (x to target slots)
       await Promise.all([
         tweenTo(mi.position, { x: xj, duration: dur(base * 0.9) / 1000, ease: "power2.inOut" }, signal),
         tweenTo(mj.position, { x: xi, duration: dur(base * 0.9) / 1000, ease: "power2.inOut" }, signal),
       ]);
-      // drop
+      // drop back to original base heights
       await Promise.all([
-        tweenTo(mi.position, { y: 0, z: 0, duration: dur(140) / 1000, ease: "power2.in" }, signal),
-        tweenTo(mj.position, { y: 0, z: 0, duration: dur(140) / 1000, ease: "power2.in" }, signal),
+        tweenTo(mi.position, { y: yi, z: 0, duration: dur(140) / 1000, ease: "power2.in" }, signal),
+        tweenTo(mj.position, { y: yj, z: 0, duration: dur(140) / 1000, ease: "power2.in" }, signal),
       ]);
       // slight impact
       gsap.to(mi.scale, { y: 0.96, duration: dur(60) / 1000, yoyo: true, repeat: 1 });

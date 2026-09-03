@@ -36,3 +36,5 @@ export type DatasetType =
   | "nearly"
   | "sorted"
   | "duplicates";
+
+export type CrateData = { id: string; value: number };

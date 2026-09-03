@@ -10,6 +10,7 @@ type Props = {
   index: number;
   value: number;
   count: number;
+  generation: number;
   register: (idx: number, mesh: THREE.Mesh | null) => void;
 };
 
@@ -18,7 +19,7 @@ const STEP = 0.018;
 const W = 1.02;
 const D = 1.0;
 
-export function Crate({ index, value, count, register }: Props) {
+export function Crate({ index, value, count, generation: _generation, register }: Props) {
   const compareIndices = useFactoryStore((s) => s.compareIndices);
   const swapIndices = useFactoryStore((s) => s.swapIndices);
   const pivotIndex = useFactoryStore((s) => s.pivotIndex);
@@ -26,7 +27,6 @@ export function Crate({ index, value, count, register }: Props) {
 
   const h = BASE_H + value * STEP;
   const x = getSlotX(index, count);
-  // y so base sits on conveyor (conveyor top ~ -0.03)
   const y = h / 2 - 0.04;
 
   let state: CrateState = "idle";
@@ -60,11 +60,19 @@ export function Crate({ index, value, count, register }: Props) {
 
   return (
     <mesh
-      position={[x, y, 0]}
       geometry={geom}
       castShadow
       receiveShadow
-      ref={(m) => register(index, m)}
+      ref={(m) => {
+        if (m) {
+          // first mount — place at slot; subsequent moves are via GSAP only
+          if (!(m.userData as { initialized?: boolean }).initialized) {
+            m.position.set(x, y, 0);
+            (m.userData as { initialized: boolean }).initialized = true;
+          }
+        }
+        register(index, m);
+      }}
     >
       <meshStandardMaterial
         color={matColor}
@@ -74,12 +82,10 @@ export function Crate({ index, value, count, register }: Props) {
         metalness={0.28}
       />
       <Edges color={state === "idle" ? "#223845" : emissive} threshold={15} />
-      {/* top plate */}
       <mesh position={[0, h / 2 - 0.02, 0]}>
         <boxGeometry args={[W - 0.06, 0.025, D - 0.06]} />
         <meshStandardMaterial color="#0A1217" roughness={0.55} metalness={0.42} />
       </mesh>
-      {/* numeric readout */}
       <group position={[0, h / 2 + 0.2, 0]}>
         <mesh>
           <planeGeometry args={[0.92, 0.4]} />
@@ -106,7 +112,6 @@ export function Crate({ index, value, count, register }: Props) {
           {`UNIT ${String(index + 1).padStart(2, "0")}`}
         </Text>
       </group>
-      {/* side strips */}
       <mesh position={[W / 2 - 0.08, -h / 2 + 0.22, 0]}>
         <boxGeometry args={[0.02, 0.02, 0.58]} />
         <meshStandardMaterial color={emissive} emissive={emissive} emissiveIntensity={emissiveIntensity + 0.5} />

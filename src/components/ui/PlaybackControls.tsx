@@ -58,19 +58,9 @@ export function PlaybackControls({
       if (!isMuted) audio.playConveyorHum();
       return;
     }
-    // playing from idle/finished -> reset then play
+    // playing from idle/finished -> reset then play (generation key remounts crates)
     if (playbackState === "finished") {
       useFactoryStore.getState().resetTelemetryAndArray();
-      // clear mesh positions back to slot
-      const wa = useFactoryStore.getState().workingArray;
-      wa.forEach((_, i) => {
-        const m = meshMap.current.get(i);
-        if (m) {
-          m.position.x = getSlotX(i, wa.length);
-          m.position.y = 0;
-          m.position.z = 0;
-        }
-      });
     }
     await audio.ensureAudio();
     if (!isMuted) audio.playConveyorHum();
@@ -129,15 +119,6 @@ export function PlaybackControls({
     abortRef.current?.abort();
     audio.stopConveyorHum();
     useFactoryStore.getState().resetTelemetryAndArray();
-    // snap meshes back
-    const wa = useFactoryStore.getState().workingArray;
-    wa.forEach((_, i) => {
-      const m = meshMap.current.get(i);
-      if (m) {
-        m.position.set(getSlotX(i, wa.length), 0, 0);
-        m.scale.set(1, 1, 1);
-      }
-    });
     if (gantryRef.current) {
       gantryRef.current.carriage.position.x = 0;
       gantryRef.current.head.position.y = 0;

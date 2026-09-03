@@ -48,15 +48,19 @@ export class SortingPlayback {
       if (isStale()) break;
       const action = actions[i];
       this.cursor = i;
-      handles.onActionStart(action, i);
+      const isMovement = action.type === "SWAP" || action.type === "OVERWRITE";
+      if (!isMovement) handles.onActionStart(action, i);
       try {
         const ctx = handles.getContext();
-        // refresh signal + speed each iteration (ctx includes fresh signal)
         await executeAction(action, { ...ctx, signal });
+        if (isStale()) break;
+        if (isMovement) handles.onActionStart(action, i);
       } catch (e) {
         if ((e as DOMException)?.name === "AbortError") break;
-        // continue on other errors
-        console.error(e);
+        // ensure SWAP still applies even if animation aborted mid-way
+        if (isMovement && !isStale()) {
+          try { handles.onActionStart(action, i); } catch { /* ignore */ }
+        } else console.error(e);
       }
     }
     if (!isStale()) handles.onComplete();
@@ -80,14 +84,20 @@ export class SortingPlayback {
     const actions = handles.getActions();
     if (this.cursor >= actions.length) return;
     const action = actions[this.cursor];
-    handles.onActionStart(action, this.cursor);
+    const isMovement = action.type === "SWAP" || action.type === "OVERWRITE";
+    if (!isMovement) handles.onActionStart(action, this.cursor);
     try {
       const ctx = handles.getContext();
       await executeAction(action, ctx);
+      if (isMovement) handles.onActionStart(action, this.cursor);
       this.cursor++;
       if (this.cursor >= actions.length) handles.onComplete();
     } catch (e) {
       if ((e as DOMException)?.name !== "AbortError") console.error(e);
+      else if (isMovement) {
+        try { handles.onActionStart(action, this.cursor); } catch { /* ignore */ }
+        this.cursor++;
+      }
     }
   }
 
