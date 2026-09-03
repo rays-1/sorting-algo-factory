@@ -1,8 +1,16 @@
+import { useEffect, useState } from "react";
 import { useFactoryStore } from "@/store/useFactoryStore";
 
 export function SystemHeader() {
   const playback = useFactoryStore((s) => s.playbackState);
   const progress = useFactoryStore((s) => s.progress);
+  const [clock, setClock] = useState(() => new Date().toLocaleTimeString([], { hour12: false }));
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setClock(new Date().toLocaleTimeString([], { hour12: false }));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const stateLabel = playback === "playing" ? "ACTIVE" : playback === "paused" ? "HOLD" : playback === "finished" ? "COMPLETE" : "STANDBY";
   const dot = playback === "playing" ? "dot-busy" : playback === "finished" ? "dot-online" : "dot-online";
@@ -30,7 +38,7 @@ export function SystemHeader() {
         </div>
         <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text)", minWidth: 34, textAlign: "right" }}>{String(progress).padStart(2, "0")}%</span>
         <span style={{ width: 1, height: 14, background: "var(--border)", margin: "0 4px" }} />
-        <span style={{ fontSize: 8, opacity: 0.7 }}>{new Date().toLocaleTimeString([], { hour12: false })}</span>
+        <span style={{ fontSize: 8, opacity: 0.7 }}>{clock}</span>
       </div>
     </header>
   );

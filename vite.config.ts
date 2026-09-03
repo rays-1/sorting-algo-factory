@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import path from 'node:path'
 
 // https://vite.dev/config/
@@ -9,5 +9,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),
     },
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
   },
 })

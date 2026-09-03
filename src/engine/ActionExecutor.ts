@@ -4,11 +4,6 @@ import type { FactoryAction } from "@/types/sorting";
 import * as audio from "@/utils/audio";
 
 // Reusable material/color maps are in Crate.tsx; executor only drives tweens via registry.
-export type CrateHandle = {
-  mesh: THREE.Mesh;
-  label: THREE.Mesh | null;
-};
-
 export type ExecutorContext = {
   getCrateMesh: (index: number) => THREE.Mesh | null;
   getSlotX: (index: number) => number;
@@ -18,14 +13,22 @@ export type ExecutorContext = {
   muted: boolean;
 };
 
+function abortError(): DOMException {
+  return new DOMException("aborted", "AbortError");
+}
+
 function wait(duration: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (signal.aborted) return reject(new DOMException("aborted", "AbortError"));
-    const id = window.setTimeout(() => resolve(), duration);
-    signal.addEventListener("abort", () => {
+    if (signal.aborted) return reject(abortError());
+    const onAbort = () => {
       clearTimeout(id);
-      reject(new DOMException("aborted", "AbortError"));
-    }, { once: true });
+      reject(abortError());
+    };
+    const id = window.setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, duration);
+    signal.addEventListener("abort", onAbort, { once: true });
   });
 }
 
@@ -35,15 +38,19 @@ function tweenTo(
   signal: AbortSignal,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (signal.aborted) return reject(new DOMException("aborted", "AbortError"));
+    if (signal.aborted) return reject(abortError());
+    const onAbort = () => {
+      t.kill();
+      reject(abortError());
+    };
     const t = gsap.to(target, {
       ...vars,
-      onComplete: () => resolve(),
+      onComplete: () => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      },
     });
-    signal.addEventListener("abort", () => {
-      t.kill();
-      reject(new DOMException("aborted", "AbortError"));
-    }, { once: true });
+    signal.addEventListener("abort", onAbort, { once: true });
   });
 }
 

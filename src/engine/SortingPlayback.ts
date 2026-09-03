@@ -36,13 +36,10 @@ export class SortingPlayback {
 
     for (let i = 0; i < actions.length; i++) {
       if (isStale()) break;
-      // handle pause
+      // handle pause — one abort-aware gate per wait, listener detached on resume
       while (this.paused) {
         if (isStale()) break;
-        await new Promise<void>((res) => {
-          this.resumeResolver = res;
-          signal.addEventListener("abort", () => res(), { once: true });
-        });
+        await this.waitForResume(signal);
         if (isStale()) break;
       }
       if (isStale()) break;
@@ -66,6 +63,17 @@ export class SortingPlayback {
     if (!isStale()) handles.onComplete();
     this.running = false;
     this.paused = false;
+  }
+
+  private waitForResume(signal: AbortSignal): Promise<void> {
+    return new Promise((res) => {
+      const onAbort = () => res();
+      this.resumeResolver = () => {
+        signal.removeEventListener("abort", onAbort);
+        res();
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+    });
   }
 
   pause() {

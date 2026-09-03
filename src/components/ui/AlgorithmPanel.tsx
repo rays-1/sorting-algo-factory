@@ -1,5 +1,6 @@
 import { useFactoryStore } from "@/store/useFactoryStore";
 import { algorithmList } from "@/algorithms";
+import type { AlgorithmId } from "@/types/sorting";
 
 export function AlgorithmPanel() {
   const id = useFactoryStore((s) => s.algorithmId);
@@ -12,7 +13,7 @@ export function AlgorithmPanel() {
       <div className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <select
           value={id}
-          onChange={(e) => set(e.target.value as never)}
+          onChange={(e) => set(e.target.value as AlgorithmId)}
           style={{
             width: "100%", background: "#080D10", border: "1px solid var(--border2)", color: "var(--cyan2)",
             fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.12em", padding: "8px 8px", outline: "none",

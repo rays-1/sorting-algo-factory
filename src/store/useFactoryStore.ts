@@ -10,12 +10,14 @@ import type {
 import { generateDataset } from "@/utils/dataset";
 import { defaultAlgorithmId, registry } from "@/algorithms";
 
+let crateSeq = 0;
 function toCrates(values: number[]): CrateData[] {
-  return values.map((v, i) => ({ id: `crate-${i}-${v}-${Math.random().toString(36).slice(2, 6)}`, value: v }));
+  return values.map((v) => ({ id: `crate-${crateSeq++}`, value: v }));
 }
 
 const _initVals = generateDataset("random", 18);
 const _initCrates = toCrates(_initVals);
+const _initActions = [...registry[defaultAlgorithmId].generator([..._initVals])];
 
 type FactoryStore = {
   // data — dataset is canonical numbers for generator; workingArray is ordered crates that move
@@ -60,11 +62,9 @@ type FactoryStore = {
   regenerate: () => void;
   buildActions: () => void;
   setPlaybackState: (s: PlaybackState) => void;
-  incrementGeneration: () => void;
 
   applyAction: (a: FactoryAction) => void;
   resetTelemetryAndArray: () => void;
-  markProgress: () => void;
 };
 
 export const useFactoryStore = create<FactoryStore>((set, get) => ({
@@ -74,7 +74,7 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
   arraySize: 18,
 
   algorithmId: defaultAlgorithmId,
-  actions: [],
+  actions: _initActions,
   actionIndex: 0,
   currentAction: null,
 
@@ -96,22 +96,29 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
   isFinished: false,
 
   setAlgorithm: (id) =>
-    set((s) => ({
-      algorithmId: id,
-      generation: s.generation + 1,
-      pivotIndex: null,
-      compareIndices: null,
-      swapIndices: null,
-      sortedIndices: new Set<number>(),
-      comparisons: 0,
-      swaps: 0,
-      overwrites: 0,
-      actionIndex: 0,
-      currentAction: null,
-      progress: 0,
-      playbackState: "idle",
-      isFinished: false,
-    })),
+    set((s) => {
+      // Reset to dataset order — actions are generated from dataset,
+      // so a mid-play workingArray order would desync the animation.
+      const gen = registry[id].generator([...s.dataset]);
+      return {
+        algorithmId: id,
+        workingArray: toCrates([...s.dataset]),
+        actions: [...gen],
+        generation: s.generation + 1,
+        pivotIndex: null,
+        compareIndices: null,
+        swapIndices: null,
+        sortedIndices: new Set<number>(),
+        comparisons: 0,
+        swaps: 0,
+        overwrites: 0,
+        actionIndex: 0,
+        currentAction: null,
+        progress: 0,
+        playbackState: "idle",
+        isFinished: false,
+      };
+    }),
 
   setDatasetType: (t) => set({ datasetType: t }),
   setArraySize: (n) => set({ arraySize: Math.max(5, Math.min(60, Math.round(n))) }),
@@ -151,7 +158,6 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
   },
 
   setPlaybackState: (s) => set({ playbackState: s }),
-  incrementGeneration: () => set({ generation: get().generation + 1 }),
 
   applyAction: (a) =>
     set((s) => {
@@ -217,20 +223,4 @@ export const useFactoryStore = create<FactoryStore>((set, get) => ({
       isFinished: false,
       generation: s.generation + 1,
     })),
-
-  markProgress: () => {
-    const s = get();
-    set({ progress: s.actions.length ? Math.round((s.actionIndex / s.actions.length) * 100) : 0 });
-  },
 }));
-
-// initialize actions on load (defer to avoid circular)
-setTimeout(() => {
-  try {
-    useFactoryStore.getState().buildActions();
-    const s = useFactoryStore.getState();
-    if (s.workingArray.length !== s.dataset.length) {
-      useFactoryStore.setState({ workingArray: toCrates([...s.dataset]) });
-    }
-  } catch { /* ignore */ }
-}, 0);

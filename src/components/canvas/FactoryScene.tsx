@@ -1,58 +1,88 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useCallback } from "react";
 import { useFactoryStore } from "@/store/useFactoryStore";
 import { FactoryLighting } from "./FactoryLighting";
 import { ConveyorLine } from "./ConveyorLine";
 import { Crate } from "./Crate";
 import { GantryCrane, type GantryHandle } from "./GantryCrane";
 import { SafetyRails } from "./SafetyRails";
+import { DustParticles } from "./DustParticles";
+import type { CameraPreset } from "@/types/sorting";
 
-function CameraRig({ controlsRef }: { controlsRef: React.RefObject<any> }) {
+// Structural type for the controls — avoids importing transitive drei internals.
+type ControlsHandle = {
+  target: THREE.Vector3;
+  update: () => void;
+};
+
+function presetPose(
+  preset: CameraPreset,
+  count: number,
+  outPos: THREE.Vector3,
+  outTarget: THREE.Vector3,
+): number {
+  const baseY = 5.2 + Math.min(2, count * 0.04);
+  const baseZ = 12 + Math.min(6, count * 0.22);
+  switch (preset) {
+    case "inspection":
+      outPos.set(0, 1.9, 5.6);
+      outTarget.set(0, 0.18, 0);
+      return 34;
+    case "gantry":
+      outPos.set(0, 3.9, 4.4);
+      outTarget.set(0, 1.55, 0);
+      return 36;
+    case "topo":
+      outPos.set(0, 13.5, 0.6);
+      outTarget.set(0, 0, 0);
+      return 42;
+    default:
+      outPos.set(0, baseY, baseZ);
+      outTarget.set(0, 0.35, 0);
+      return 38;
+  }
+}
+
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+// Transition-only rig: animates ~1.4s after a preset/count change, then
+// releases the camera so OrbitControls never fight the user.
+function CameraRig() {
   const preset = useFactoryStore((s) => s.cameraPreset);
   const count = useFactoryStore((s) => s.workingArray.length);
   const { camera } = useThree();
-  const targetVec = useMemo(() => new THREE.Vector3(), []);
-  const posVec = useMemo(() => new THREE.Vector3(), []);
-  const curPos = useMemo(() => new THREE.Vector3(), []);
-  const curTarget = useMemo(() => new THREE.Vector3(), []);
+  const controls = useThree((s) => s.controls) as unknown as ControlsHandle | null;
 
-  useFrame((_, delta) => {
-    const controls = controlsRef.current;
+  const fromPos = useMemo(() => new THREE.Vector3(), []);
+  const fromTarget = useMemo(() => new THREE.Vector3(), []);
+  const toPos = useMemo(() => new THREE.Vector3(), []);
+  const toTarget = useMemo(() => new THREE.Vector3(), []);
+  const progress = useRef(1);
+  const fromFov = useRef(38);
+  const toFov = useRef(38);
+  const prev = useRef({ preset, count });
+
+  useFrame((_, rawDelta) => {
     if (!controls) return;
-    // base overview adapts to array size
-    const baseY = 5.2 + Math.min(2, count * 0.04);
-    const baseZ = 12 + Math.min(6, count * 0.22);
-    let tx = 0, ty = baseY, tz = baseZ, lookX = 0, lookY = 0.35, lookZ = 0;
-    let fov = 38;
-    switch (preset) {
-      case "inspection":
-        tx = 0; ty = 1.9; tz = 5.6; lookY = 0.18; fov = 34; break;
-      case "gantry":
-        tx = 0; ty = 3.9; tz = 4.4; lookY = 1.55; fov = 36; break;
-      case "topo":
-        tx = 0; ty = 13.5; tz = 0.6; lookY = 0; lookZ = 0; fov = 42; break;
-      default: // overview
-        break;
+    const delta = Math.min(rawDelta, 0.05);
+    if (prev.current.preset !== preset || prev.current.count !== count) {
+      prev.current = { preset, count };
+      fromPos.copy(camera.position);
+      fromTarget.copy(controls.target);
+      fromFov.current = (camera as THREE.PerspectiveCamera).fov ?? 38;
+      toFov.current = presetPose(preset, count, toPos, toTarget);
+      progress.current = 0;
     }
-    targetVec.set(lookX, lookY, lookZ);
-    posVec.set(tx, ty, tz);
-
-    // lerp controls target — this drives OrbitControls look
-    curTarget.copy(controls.target);
-    curTarget.lerp(targetVec, Math.min(1, delta * 1.8));
-    controls.target.copy(curTarget);
-
-    // lerp camera position
-    curPos.copy(camera.position);
-    curPos.lerp(posVec, Math.min(1, delta * 1.6));
-    camera.position.copy(curPos);
-
-    // lerp fov
-    if ((camera as THREE.PerspectiveCamera).fov !== undefined) {
-      const cam = camera as THREE.PerspectiveCamera;
-      cam.fov += (fov - cam.fov) * Math.min(1, delta * 1.5);
+    if (progress.current >= 1) return;
+    progress.current = Math.min(1, progress.current + delta / 1.4);
+    const e = easeInOut(progress.current);
+    camera.position.lerpVectors(fromPos, toPos, e);
+    controls.target.lerpVectors(fromTarget, toTarget, e);
+    const cam = camera as THREE.PerspectiveCamera;
+    if (cam.fov !== undefined) {
+      cam.fov = fromFov.current + (toFov.current - fromFov.current) * e;
       cam.updateProjectionMatrix();
     }
     controls.update();
@@ -60,31 +90,35 @@ function CameraRig({ controlsRef }: { controlsRef: React.RefObject<any> }) {
   return null;
 }
 
-function SceneContent({ gantryRef, meshMap, controlsRef }: { gantryRef: React.RefObject<GantryHandle | null>; meshMap: React.MutableRefObject<Map<number, THREE.Mesh>>; controlsRef: React.RefObject<any> }) {
+function SceneContent({ gantryRef, meshMap }: {
+  gantryRef: React.RefObject<GantryHandle | null>;
+  meshMap: React.MutableRefObject<Map<number, THREE.Mesh>>;
+}) {
   const count = useFactoryStore((s) => s.workingArray.length);
   const workingArray = useFactoryStore((s) => s.workingArray);
-  const generation = useFactoryStore((s) => s.generation);
+
+  const register = useCallback((idx: number, mesh: THREE.Mesh | null) => {
+    if (mesh) meshMap.current.set(idx, mesh);
+    else meshMap.current.delete(idx);
+  }, [meshMap]);
 
   return (
     <>
       <PerspectiveCamera makeDefault position={[0, 5.2, 12]} fov={38} near={0.1} far={80} />
-      <CameraRig controlsRef={controlsRef} />
+      <CameraRig />
       <FactoryLighting />
       <ConveyorLine count={count} />
       <SafetyRails count={count} />
       <GantryCrane ref={gantryRef as never} count={count} />
-      {/* crates — key by crate id so physical crate travels with its value */}
+      <DustParticles count={70} />
+      {/* crates — key by crate id so the physical crate travels with its value */}
       {workingArray.map((crate, i) => (
         <Crate
           key={crate.id}
           index={i}
           value={crate.value}
           count={count}
-          generation={generation}
-          register={(idx, mesh) => {
-            if (mesh) meshMap.current.set(idx, mesh);
-            else meshMap.current.delete(idx);
-          }}
+          register={register}
         />
       ))}
       {/* floor */}
@@ -104,24 +138,24 @@ export function FactoryScene({
   gantryRef: React.RefObject<GantryHandle | null>;
   meshMap: React.MutableRefObject<Map<number, THREE.Mesh>>;
 }) {
-  const generation = useFactoryStore((s) => s.generation);
+  // Remount the canvas only when slot layout changes — never on
+  // reset/algorithm switch (crate ids already remount the crates).
   const count = useFactoryStore((s) => s.workingArray.length);
-  const controlsRef = useRef<any>(null);
   return (
     <Canvas
-      key={`factory-${generation}-${count}`}
+      key={`factory-${count}`}
       dpr={[1, 1.5]}
       shadows={false}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       style={{ width: "100%", height: "100%", display: "block", background: "#05090C" }}
     >
-      <SceneContent gantryRef={gantryRef} meshMap={meshMap} controlsRef={controlsRef} />
+      <SceneContent gantryRef={gantryRef} meshMap={meshMap} />
       <OrbitControls
-        ref={controlsRef}
+        makeDefault
         enablePan={false}
         minDistance={4}
         maxDistance={30}
-        minPolarAngle={0.08}
+        minPolarAngle={0.02}
         maxPolarAngle={1.45}
         target={[0, 0.35, 0]}
         enableDamping
@@ -131,11 +165,4 @@ export function FactoryScene({
       />
     </Canvas>
   );
-}
-
-// Helper hook for executor to resolve slot X — keep for external use
-import { getSlotX } from "@/utils/math";
-export function useSlotHelper() {
-  const count = useFactoryStore((s) => s.workingArray.length);
-  return (idx: number) => getSlotX(idx, count);
 }

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { Text, Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { getSlotX } from "@/utils/math";
@@ -10,7 +10,6 @@ type Props = {
   index: number;
   value: number;
   count: number;
-  generation: number;
   register: (idx: number, mesh: THREE.Mesh | null) => void;
 };
 
@@ -19,7 +18,8 @@ const STEP = 0.018;
 const W = 1.02;
 const D = 1.0;
 
-export function Crate({ index, value, count, generation: _generation, register }: Props) {
+export const Crate = memo(function Crate({ index, value, count, register }: Props) {
+  const meshRef = useRef<THREE.Mesh>(null);
   const compareIndices = useFactoryStore((s) => s.compareIndices);
   const swapIndices = useFactoryStore((s) => s.swapIndices);
   const pivotIndex = useFactoryStore((s) => s.pivotIndex);
@@ -28,6 +28,18 @@ export function Crate({ index, value, count, generation: _generation, register }
   const h = BASE_H + value * STEP;
   const x = getSlotX(index, count);
   const y = h / 2 - 0.04;
+
+  // mount-only placement — GSAP owns the mesh afterwards
+  useEffect(() => {
+    meshRef.current?.position.set(x, y, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // slot registration follows the index prop (reordered after swaps)
+  useEffect(() => {
+    register(index, meshRef.current);
+    return () => register(index, null);
+  }, [index, register]);
 
   let state: CrateState = "idle";
   if (sortedSet.has(index)) state = "sorted";
@@ -56,23 +68,16 @@ export function Crate({ index, value, count, generation: _generation, register }
   }, [state]);
 
   const emissiveIntensity = state === "idle" ? 0.28 : state === "sorted" ? 0.65 : 0.95;
+  // disposed on value change / unmount — no GPU leak on overwrites
   const geom = useMemo(() => new THREE.BoxGeometry(W, h, D), [h]);
+  useEffect(() => () => geom.dispose(), [geom]);
 
   return (
     <mesh
+      ref={meshRef}
       geometry={geom}
       castShadow
       receiveShadow
-      ref={(m) => {
-        if (m) {
-          // first mount — place at slot; subsequent moves are via GSAP only
-          if (!(m.userData as { initialized?: boolean }).initialized) {
-            m.position.set(x, y, 0);
-            (m.userData as { initialized: boolean }).initialized = true;
-          }
-        }
-        register(index, m);
-      }}
     >
       <meshStandardMaterial
         color={matColor}
@@ -134,4 +139,4 @@ export function Crate({ index, value, count, generation: _generation, register }
       )}
     </mesh>
   );
-}
+});

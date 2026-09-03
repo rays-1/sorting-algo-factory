@@ -35,8 +35,9 @@ export function ProcessTimeline() {
         {slice.length === 0 && <span style={{ color: "var(--muted2)", letterSpacing: "0.12em" }}>NO ACTIONS — GENERATE DATASET</span>}
         {slice.map((a, i) => {
           const global = start + i;
-          const active = global === idx && cur;
-          const isPast = global < idx;
+          // actionIndex points at the NEXT action; currentAction is idx-1
+          const active = cur !== null && global === idx - 1;
+          const isPast = global < idx - (cur !== null ? 1 : 0);
           return (
             <div
               key={global}

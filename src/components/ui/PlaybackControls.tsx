@@ -3,6 +3,7 @@ import type { DatasetType } from "@/types/sorting";
 import { DATASET_LABELS } from "@/utils/dataset";
 import { useEffect, useRef } from "react";
 import { playback } from "@/engine/SortingPlayback";
+import { executeAction } from "@/engine/ActionExecutor";
 import { getSlotX } from "@/utils/math";
 import * as audio from "@/utils/audio";
 import type { GantryHandle } from "@/components/canvas/GantryCrane";
@@ -102,12 +103,15 @@ export function PlaybackControls({
     if (!abortRef.current || abortRef.current.signal.aborted) abortRef.current = new AbortController();
     await audio.ensureAudio();
     const action = curActions[idx];
-    useFactoryStore.getState().applyAction(action);
-    // animate single action
-    const { executeAction } = await import("@/engine/ActionExecutor");
+    // mirror play(): animate movement first, apply after — no mid-flight morph
+    const isMovement = action.type === "SWAP" || action.type === "OVERWRITE";
+    if (!isMovement) useFactoryStore.getState().applyAction(action);
     try {
       await executeAction(action, getContext());
-    } catch { /* abort */ }
+      if (isMovement) useFactoryStore.getState().applyAction(action);
+    } catch { /* abort — still apply movement so state stays consistent */
+      if (isMovement) useFactoryStore.getState().applyAction(action);
+    }
     if (useFactoryStore.getState().actionIndex >= curActions.length) {
       useFactoryStore.setState({ playbackState: "finished" });
       if (!isMuted) audio.playCompletionChime();
@@ -140,6 +144,28 @@ export function PlaybackControls({
     useFactoryStore.setState({ playbackState: "idle" });
   };
 
+  // keyboard shortcuts: Space run/hold, → step, R reset (after handlers)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        const st = useFactoryStore.getState().playbackState;
+        if (st === "playing") handleHold();
+        else void handleRun();
+      } else if (e.code === "ArrowRight") {
+        e.preventDefault();
+        void handleStep();
+      } else if (e.code === "KeyR") {
+        handleReset();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   return (
     <div className="panel">
       <div className="panel-head"><span><b>CONTROL</b> / OPERATIONS</span><span style={{ color: playbackState === "playing" ? "var(--amber)" : "var(--muted2)" }}>{playbackState.toUpperCase()}</span></div>
@@ -165,7 +191,7 @@ export function PlaybackControls({
             <span className="telemetry-label">DATASET</span>
             <select
               value={datasetType}
-              onChange={(e) => { setDatasetType(e.target.value as DatasetType); setTimeout(handleRegenerate, 0); }}
+              onChange={(e) => { setDatasetType(e.target.value as DatasetType); handleRegenerate(); }}
               style={{ background: "#080D10", border: "1px solid var(--border2)", color: "var(--text)", fontFamily: "var(--mono)", fontSize: 9, letterSpacing: "0.1em", padding: "6px 6px", outline: "none" }}
             >
               {(Object.entries(DATASET_LABELS) as [DatasetType, string][]).map(([k, v]) => <option key={k} value={k}>{v}</option>)}

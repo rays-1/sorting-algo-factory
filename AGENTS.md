@@ -16,9 +16,9 @@
 
 ## Tooling
 - Package manager: `npm` (lockfile `package-lock.json`). Install: `npm install` (workdir `C:\Users\rayst\OneDrive\Documents\sorting-algo`). Verified 2026-09-03: Node 24.19 + npm 11.17.
-- Scripts (from `package.json:6`): `npm run dev` → Vite dev server; `npm run build` → `tsc -b && vite build`; `npm run preview` → Vite preview; lint via `oxlint` (`.oxlintrc.json`).
+- Scripts (from `package.json:7`): `npm run dev` → Vite dev server; `npm run build` → `tsc -b && vite build`; `npm run preview` → Vite preview; `npm run lint` → `oxlint`; `npm test` → `vitest run`.
+- Tests: `src/algorithms/algorithms.test.ts` (4 algos × 10 fixtures + sorted-marking). Single file: `npx vitest run src/algorithms/algorithms.test.ts`; single case: `npx vitest run -t "sorts duplicates"`. Test config lives in `vite.config.ts` (`defineConfig` from `vitest/config`).
 - TS: `tsconfig.json` refs `tsconfig.app.json`/`tsconfig.node.json` (path alias `@` → `src`). Vite config `vite.config.ts:10` uses `import.meta.dirname`.
-- No test runner yet — algorithms verified via generator output (`[...registry[id].generator(arr)]`). Add Vitest if needed and document single-test command.
 - No CI workflows or pre-commit hooks.
 
 ## Guidance for Next Session
@@ -27,7 +27,7 @@
 - When scaffolding, add minimal runnable example and verified command to run it, then replace the greenfield notice above.
 
 ## Architecture
-- Entry: `src/main.tsx` → `src/App.tsx` (grid HUD + `<Canvas>`).
+- Entry: `src/main.tsx` → `src/App.tsx` (grid HUD + lazy `<Canvas>` via `Suspense`; never `getState()` in render — use hooks).
 - `src/types/sorting.ts` defines `FactoryAction` + `SortingGenerator`; `src/algorithms/index.ts` registry drives UI. Algorithms are pure generators — no React/Three.
 - `src/store/useFactoryStore.ts` holds `dataset`/`workingArray`/`playbackState`/`speed`/`pivot`/`sortedIndices`/telemetry; no meshes in store.
 - `src/engine/SortingPlayback.ts` + `ActionExecutor.ts` handle cancellable GSAP timelines (`AbortController` + `generation` counter); `src/utils/audio.ts` is singleton `AudioContext`.

@@ -1,9 +1,21 @@
+import { memo, useMemo } from "react";
 import { getSlotX } from "@/utils/math";
 import { Text } from "@react-three/drei";
 
-export function ConveyorLine({ count }: { count: number }) {
+export const ConveyorLine = memo(function ConveyorLine({ count }: { count: number }) {
   const width = (count - 1) * 1.6 + 2.4;
-  const slotPos = (i: number) => getSlotX(i, count);
+  const slotXs = useMemo(
+    () => Array.from({ length: count }, (_, i) => getSlotX(i, count)),
+    [count],
+  );
+  const rollerXs = useMemo(() => {
+    const n = Math.max(0, count * 2);
+    return Array.from({ length: n }, (_, i) => -width / 2 + 0.5 + (i * (width - 1)) / Math.max(1, n - 1));
+  }, [count, width]);
+  const supportXs = useMemo(() => {
+    const n = Math.max(2, Math.ceil(count / 3) + 1);
+    return Array.from({ length: n }, (_, i) => -width / 2 + 0.4 + (i * (width - 0.8)) / Math.max(1, n - 1));
+  }, [count, width]);
 
   return (
     <group>
@@ -36,27 +48,19 @@ export function ConveyorLine({ count }: { count: number }) {
         <meshStandardMaterial color="#36C7D9" emissive="#36C7D9" emissiveIntensity={1.2} />
       </mesh>
       {/* rollers */}
-      {Array.from({ length: Math.max(0, count * 2) }).map((_, i) => {
-        const x = -width / 2 + 0.5 + (i * (width - 1)) / Math.max(1, count * 2 - 1);
-        return (
-          <mesh key={i} position={[x, -0.11, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.09, 0.09, 1.72, 10]} />
-            <meshStandardMaterial color="#1A2A32" roughness={0.55} metalness={0.35} />
-          </mesh>
-        );
-      })}
+      {rollerXs.map((x, i) => (
+        <mesh key={i} position={[x, -0.11, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.09, 0.09, 1.72, 10]} />
+          <meshStandardMaterial color="#1A2A32" roughness={0.55} metalness={0.35} />
+        </mesh>
+      ))}
       {/* slot markers + coordinate labels */}
-      {Array.from({ length: count }).map((_, i) => (
-        <group key={i} position={[slotPos(i), -0.055, 0]}>
+      {slotXs.map((sx, i) => (
+        <group key={i} position={[sx, -0.055, 0]}>
           {/* slot plate */}
           <mesh position={[0, 0.02, 0]} receiveShadow>
             <boxGeometry args={[1.18, 0.015, 1.46]} />
             <meshStandardMaterial color={i % 2 === 0 ? "#121F25" : "#0F1C22"} roughness={0.8} />
-          </mesh>
-          {/* thin border */}
-          <mesh position={[0, 0.028, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[1.18, 1.46]} />
-            <meshBasicMaterial color="#1E333C" transparent opacity={0.0} />
           </mesh>
           {/* LED */}
           <mesh position={[0, 0.03, 0.66]}>
@@ -87,16 +91,12 @@ export function ConveyorLine({ count }: { count: number }) {
         </group>
       ))}
       {/* structural supports */}
-      {Array.from({ length: Math.max(2, Math.ceil(count / 3) + 1) }).map((_, i) => {
-        const cnt = Math.ceil(count / 3) + 1;
-        const x = -width / 2 + 0.4 + (i * (width - 0.8)) / Math.max(1, cnt - 1);
-        return (
-          <mesh key={`sup-${i}`} position={[x, -0.55, 0]}>
-            <boxGeometry args={[0.16, 0.7, 1.2]} />
-            <meshStandardMaterial color="#080D10" roughness={0.9} />
-          </mesh>
-        );
-      })}
+      {supportXs.map((x, i) => (
+        <mesh key={`sup-${i}`} position={[x, -0.55, 0]}>
+          <boxGeometry args={[0.16, 0.7, 1.2]} />
+          <meshStandardMaterial color="#080D10" roughness={0.9} />
+        </mesh>
+      ))}
     </group>
   );
-}
+})
